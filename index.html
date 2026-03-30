@@ -75,6 +75,30 @@
                 <input type="text" id="token-input" placeholder="Pega tu token de autorización aquí" class="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
             </div>
 
+            <!-- Opción de Proxy CORS -->
+            <div id="cors-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="cors-toggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span class="text-sm font-medium text-gray-300">Evitar verificación CORS</span>
+                    </div>
+                    <span id="cors-badge" class="hidden text-xs bg-yellow-600 text-yellow-100 px-2 py-1 rounded-full font-medium">Proxy activo</span>
+                </div>
+                <div id="cors-proxy-options" class="mt-3 hidden">
+                    <label for="cors-proxy-select" class="block text-xs font-medium text-gray-400 mb-1">Proxy CORS</label>
+                    <select id="cors-proxy-select" class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
+                        <option value="https://corsproxy.io/?">corsproxy.io (recomendado)</option>
+                        <option value="https://api.allorigins.win/raw?url=">allorigins.win</option>
+                        <option value="custom">Proxy personalizado...</option>
+                    </select>
+                    <input type="text" id="cors-custom-proxy" placeholder="https://mi-proxy.example.com/?url=" class="mt-2 hidden w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
+                    <p class="text-xs text-gray-500 mt-2">⚠️ La solicitud se reenviará a través de un proxy público para evitar restricciones CORS.</p>
+                </div>
+            </div>
+
             <!-- Cuerpo de la Petición (Request Body) -->
             <div id="body-section" class="hidden">
                 <label for="body-textarea" class="block text-sm font-medium text-gray-300 mb-2">Cuerpo de la Petición (JSON)</label>
@@ -129,7 +153,7 @@
         // --- SELECCIÓN DE ELEMENTOS DEL DOM ---
         const methodSelect = document.getElementById('method-select');
         const urlInput = document.getElementById('url-input');
-        const tokenInput = document.getElementById('token-input'); // Nuevo elemento
+        const tokenInput = document.getElementById('token-input');
         const bodySection = document.getElementById('body-section');
         const bodyTextarea = document.getElementById('body-textarea');
         const sendBtn = document.getElementById('send-btn');
@@ -142,6 +166,12 @@
         const bodyPre = document.getElementById('body-pre');
         const errorContent = document.getElementById('error-content');
         const errorMessage = document.getElementById('error-message');
+        // Elementos del proxy CORS
+        const corsToggle = document.getElementById('cors-toggle');
+        const corsBadge = document.getElementById('cors-badge');
+        const corsProxyOptions = document.getElementById('cors-proxy-options');
+        const corsProxySelect = document.getElementById('cors-proxy-select');
+        const corsCustomProxy = document.getElementById('cors-custom-proxy');
 
         // --- LÓGICA DE LA APLICACIÓN ---
 
@@ -157,6 +187,50 @@
                 bodySection.classList.add('hidden');
             }
         });
+
+        /**
+         * Alterna la visibilidad de las opciones del proxy CORS.
+         */
+        corsToggle.addEventListener('change', () => {
+            if (corsToggle.checked) {
+                corsProxyOptions.classList.remove('hidden');
+                corsBadge.classList.remove('hidden');
+            } else {
+                corsProxyOptions.classList.add('hidden');
+                corsBadge.classList.add('hidden');
+            }
+        });
+
+        /**
+         * Muestra/oculta el campo de proxy personalizado.
+         */
+        corsProxySelect.addEventListener('change', () => {
+            if (corsProxySelect.value === 'custom') {
+                corsCustomProxy.classList.remove('hidden');
+            } else {
+                corsCustomProxy.classList.add('hidden');
+            }
+        });
+
+        /**
+         * Obtiene la URL con el proxy CORS aplicado si es necesario.
+         * @param {string} originalUrl - La URL original de la petición.
+         * @returns {string} - La URL (con proxy si está activado).
+         */
+        function getCorsProxiedUrl(originalUrl) {
+            if (!corsToggle.checked) return originalUrl;
+            
+            let proxyBase;
+            if (corsProxySelect.value === 'custom') {
+                proxyBase = corsCustomProxy.value.trim();
+                if (!proxyBase) {
+                    throw new Error('Introduce la URL del proxy personalizado.');
+                }
+            } else {
+                proxyBase = corsProxySelect.value;
+            }
+            return proxyBase + encodeURIComponent(originalUrl);
+        }
 
         /**
          * Maneja el cambio de pestañas en la sección de respuesta.
@@ -258,7 +332,8 @@
             }
             
             try {
-                const response = await fetch(url, fetchOptions);
+                const proxiedUrl = getCorsProxiedUrl(url);
+                const response = await fetch(proxiedUrl, fetchOptions);
                 const responseData = await response.text(); // Leemos como texto primero
 
                 // Muestra la sección de respuesta
